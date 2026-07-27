@@ -51,6 +51,13 @@ npm install typed.js
 yarn add typed.js
 ```
 
+#### Custom installer
+
+```
+node scripts/install-src-demo.js
+node --check assets/demos.js
+```
+
 #### General ESM Usage
 
 ```js

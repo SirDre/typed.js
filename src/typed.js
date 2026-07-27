@@ -67,6 +67,7 @@ export default class Typed {
    */
   reset(restart = true) {
     clearInterval(this.timeout);
+    this.clearGlitchClass();
     this.replaceText('');
     if (this.cursor && this.cursor.parentNode) {
       this.cursor.parentNode.removeChild(this.cursor);
@@ -82,27 +83,6 @@ export default class Typed {
     }
   }
 
-  append(string) {
-    const prevString = this.strings[this.strings.length - 1];
-    this.strings.push(string);
-    this.sequence = this.strings.map((_, i) => i);
-
-    // If typing isn't done yet, it will continue with any appended strings
-    if (!this.typingComplete) return;
-
-    // If typing has completed already, we need to start it up again from where it left off
-    if (this.shouldBackspace) {
-      this.timeout = setTimeout(() => {
-        this.backspace(prevString, prevString.length - 1);
-      }, this.backDelay);
-    } else {
-      this.timeout = setTimeout(() => {
-        this.arrayPos++;
-        this.typewrite(this.strings[this.sequence[this.arrayPos]], 0);
-      }, this.backDelay);
-    }
-  }
-
   /**
    * Begins the typing animation
    * @private
@@ -110,18 +90,16 @@ export default class Typed {
   begin() {
     this.options.onBegin(this);
     this.typingComplete = false;
-    this.shuffleStringsIfNeeded();
+    this.shuffleStringsIfNeeded(this);
     this.insertCursor();
-
     if (this.bindInputFocusEvents) this.bindFocusEvents();
-
     this.timeout = setTimeout(() => {
-      // If the strPos is 0, we're starting from the beginning of a string
-      // else, we're starting with a previous string that needs to be backspaced first
-      if (this.strPos === 0) {
+      // Check if there is some text in the element, if yes start by backspacing the default message
+      if (!this.currentElContent || this.currentElContent.length === 0) {
         this.typewrite(this.strings[this.sequence[this.arrayPos]], this.strPos);
       } else {
-        this.backspace(this.strings[this.sequence[this.arrayPos]], this.strPos);
+        // Start typing
+        this.backspace(this.currentElContent, this.currentElContent.length);
       }
     }, this.startDelay);
   }
@@ -152,7 +130,7 @@ export default class Typed {
       curStrPos = htmlParser.typeHtmlChars(curString, curStrPos, this);
 
       let pauseTime = 0;
-      let substr = curString.substring(curStrPos);
+      let substr = curString.substr(curStrPos);
       // check for an escape character before a pause value
       // format: \^\d+ .. eg: ^1000 .. should be able to print the ^ too using ^^
       // single ^ are removed from string
@@ -175,7 +153,7 @@ export default class Typed {
       // check for skip characters formatted as
       // "this is a `string to print NOW` ..."
       if (substr.charAt(0) === '`') {
-        while (curString.substring(curStrPos + numChars).charAt(0) !== '`') {
+        while (curString.substr(curStrPos + numChars).charAt(0) !== '`') {
           numChars++;
           if (curStrPos + numChars > curString.length) break;
         }
@@ -221,20 +199,17 @@ export default class Typed {
   keepTyping(curString, curStrPos, numChars) {
     // call before functions if applicable
     if (curStrPos === 0) {
+      this.clearGlitchClass();
       this.toggleBlinking(false);
       this.options.preStringTyped(this.arrayPos, this);
     }
-
-    if (this.shouldBackspace) {
-      // start typing each new char into existing string
-      // curString: arg, this.el.html: original text inside element
-      curStrPos += numChars;
-      const nextString = curString.substring(0, curStrPos);
-      this.replaceText(nextString);
+    // start typing each new char into existing string
+    // curString: arg, this.el.html: original text inside element
+    curStrPos += numChars;
+    if (this.canRenderGlitchFrame(curString)) {
+      this.replaceText(this.renderGlitchFrame(curString, curStrPos));
     } else {
-      const nextString = curString.substring(curStrPos, curStrPos + numChars);
-      curStrPos += numChars;
-      this.replaceText(nextString);
+      this.replaceText(curString.substr(0, curStrPos));
     }
     // loop the function
     this.typewrite(curString, curStrPos);
@@ -247,11 +222,13 @@ export default class Typed {
    * @private
    */
   doneTyping(curString, curStrPos) {
+    this.replaceText(curString);
+    this.applyGlitchClass(curString);
     // fires callback function
     this.options.onStringTyped(this.arrayPos, this);
     this.toggleBlinking(true);
     // is this the final string
-    if (this.isFinalString()) {
+    if (this.arrayPos === this.strings.length - 1) {
       // callback that occurs on the last typed string
       this.complete();
       // quit if we wont loop back
@@ -259,17 +236,9 @@ export default class Typed {
         return;
       }
     }
-
-    if (this.shouldBackspace) {
-      this.timeout = setTimeout(() => {
-        this.backspace(curString, curStrPos);
-      }, this.backDelay);
-    } else {
-      this.timeout = setTimeout(() => {
-        this.arrayPos++;
-        this.typewrite(this.strings[this.sequence[this.arrayPos]], 0);
-      }, this.backDelay);
-    }
+    this.timeout = setTimeout(() => {
+      this.backspace(curString, curStrPos);
+    }, this.backDelay);
   }
 
   /**
@@ -285,22 +254,23 @@ export default class Typed {
     }
     if (this.fadeOut) return this.initFadeOut();
 
+    this.clearGlitchClass();
     this.toggleBlinking(false);
     const humanize = this.humanizer(this.backSpeed);
 
     this.timeout = setTimeout(() => {
       curStrPos = htmlParser.backSpaceHtmlChars(curString, curStrPos, this);
       // replace text with base text + typed characters
-      const curStringAtPosition = curString.substring(0, curStrPos);
+      const curStringAtPosition = curString.substr(0, curStrPos);
       this.replaceText(curStringAtPosition);
 
       // if smartBack is enabled
       if (this.smartBackspace) {
         // the remaining part of the current string is equal of the same part of the new string
-        let nextString = this.strings[this.sequence[this.arrayPos + 1]];
+        let nextString = this.strings[this.arrayPos + 1];
         if (
           nextString &&
-          curStringAtPosition === nextString.substring(0, curStrPos)
+          curStringAtPosition === nextString.substr(0, curStrPos)
         ) {
           this.stopNum = curStrPos;
         } else {
@@ -316,40 +286,21 @@ export default class Typed {
         // loop the function
         this.backspace(curString, curStrPos);
       } else if (curStrPos <= this.stopNum) {
-        // if the stop number has been reached, we're either done backspacing,
-        // or we need to continue to the next string
-
-        if (this.isFinalString()) {
-          this.lastStringBackspaced();
+        // if the stop number has been reached, increase
+        // array position to next string
+        this.arrayPos++;
+        // When looping, begin at the beginning after backspace complete
+        if (this.arrayPos === this.strings.length) {
+          this.arrayPos = 0;
+          this.options.onLastStringBackspaced();
+          this.shuffleStringsIfNeeded();
+          this.begin();
         } else {
-          this.arrayPos++;
           this.typewrite(this.strings[this.sequence[this.arrayPos]], curStrPos);
         }
       }
       // humanized value for typing
     }, humanize);
-  }
-
-  /**
-   * Are we on the last string in the array?
-   * @private
-   */
-  isFinalString() {
-    return this.arrayPos === this.strings.length - 1;
-  }
-
-  /**
-   * Do stuff after the last string is backspaced
-   * @private
-   */
-  lastStringBackspaced() {
-    this.arrayPos = 0;
-    this.options.onLastStringBackspaced();
-
-    if (this.loop) {
-      this.shuffleStringsIfNeeded();
-      this.begin();
-    }
   }
 
   /**
@@ -390,10 +341,61 @@ export default class Typed {
     if (this.cursorBlinking === isBlinking) return;
     this.cursorBlinking = isBlinking;
     if (isBlinking) {
-      this.cursor.classList.add('typed-cursor--blink');
+      this.cursor.classList.add(this.cursorBlinkClass);
     } else {
-      this.cursor.classList.remove('typed-cursor--blink');
+      this.cursor.classList.remove(this.cursorBlinkClass);
     }
+  }
+
+  canRenderGlitchFrame(curString) {
+    return (
+      this.glitch &&
+      this.contentType !== 'html' &&
+      !this.isInput &&
+      !this.attr &&
+      typeof curString === 'string' &&
+      curString.length > 0
+    );
+  }
+
+  randomGlitchCharacter() {
+    if (!this.glitchRandomChars || this.glitchRandomChars.length === 0) {
+      return '';
+    }
+    const index = Math.floor(Math.random() * this.glitchRandomChars.length);
+    return this.glitchRandomChars.charAt(index);
+  }
+
+  renderGlitchFrame(curString, visibleChars) {
+    if (visibleChars >= curString.length) {
+      return curString;
+    }
+    let output = '';
+    for (let i = 0; i < curString.length; i += 1) {
+      const char = curString.charAt(i);
+      if (i < visibleChars || /\s/.test(char)) {
+        output += char;
+      } else {
+        output += this.randomGlitchCharacter();
+      }
+    }
+    return output;
+  }
+
+  applyGlitchClass(text) {
+    if (!this.glitch || this.contentType === 'html' || this.isInput || this.attr) {
+      return;
+    }
+    this.el.classList.add(this.glitchClass);
+    this.el.setAttribute('data-text', text);
+  }
+
+  clearGlitchClass() {
+    if (!this.el || !this.glitchClass || !this.el.classList) {
+      return;
+    }
+    this.el.classList.remove(this.glitchClass);
+    this.el.removeAttribute('data-text');
   }
 
   /**
@@ -442,19 +444,13 @@ export default class Typed {
    * @private
    */
   replaceText(str) {
-    // let currentElContent = this.getCurrentElContent(this);
-
     if (this.attr) {
       this.el.setAttribute(this.attr, str);
     } else {
       if (this.isInput) {
         this.el.value = str;
       } else if (this.contentType === 'html') {
-        if (this.shouldBackspace) {
-          this.el.innerHTML = str;
-        } else {
-          this.el.innerHTML += str;
-        }
+        this.el.innerHTML = str;
       } else {
         this.el.textContent = str;
       }
@@ -487,7 +483,7 @@ export default class Typed {
     if (!this.showCursor) return;
     if (this.cursor) return;
     this.cursor = document.createElement('span');
-    this.cursor.className = 'typed-cursor';
+    this.cursor.className = this.cursorClass;
     this.cursor.setAttribute('aria-hidden', true);
     this.cursor.innerHTML = this.cursorChar;
     this.el.parentNode &&

@@ -32,6 +32,13 @@ export default class Initializer {
 
     // custom cursor
     self.cursorChar = self.options.cursorChar;
+    self.cursorClass = self.options.cursorClass;
+    self.cursorBlinkClass = `${self.cursorClass}--blink`;
+
+    // glitch effect config
+    self.glitch = self.options.glitch;
+    self.glitchClass = self.options.glitchClass;
+    self.glitchRandomChars = self.options.glitchRandomChars;
 
     // Is the cursor blinking
     self.cursorBlinking = true;
@@ -59,8 +66,6 @@ export default class Initializer {
     // amount of time to wait before backspacing
     self.backDelay = self.options.backDelay;
 
-    self.shouldBackspace = self.options.shouldBackspace;
-
     // Fade out instead of backspace
     self.fadeOut = self.options.fadeOut;
     self.fadeOutClass = self.options.fadeOutClass;
@@ -81,9 +86,7 @@ export default class Initializer {
 
     if (self.stringsElement) {
       self.strings = [];
-      self.stringsElement.style.cssText =
-        'clip: rect(0 0 0 0);clip-path:inset(50%);height:1px;overflow:hidden;position:absolute;white-space:nowrap;width:1px;';
-
+      self.stringsElement.style.display = 'none';
       const strings = Array.prototype.slice.apply(self.stringsElement.children);
       const stringsLength = strings.length;
 
@@ -98,22 +101,6 @@ export default class Initializer {
     // character number position of current string
     self.strPos = 0;
 
-    // If there is some text in the element
-    self.currentElContent = this.getCurrentElContent(self);
-
-    if (self.currentElContent && self.currentElContent.length > 0) {
-      self.strPos = self.currentElContent.length - 1;
-      self.strings.unshift(self.currentElContent);
-    }
-
-    // the order of strings
-    self.sequence = [];
-
-    // Set the order in which the strings are typed
-    for (let i in self.strings) {
-      self.sequence[i] = i;
-    }
-
     // current array position
     self.arrayPos = 0;
 
@@ -127,23 +114,30 @@ export default class Initializer {
 
     // shuffle the strings
     self.shuffle = self.options.shuffle;
+    // the order of strings
+    self.sequence = [];
 
     self.pause = {
       status: false,
       typewrite: true,
       curString: '',
-      curStrPos: 0,
+      curStrPos: 0
     };
 
     // When the typing is complete (when not looped)
     self.typingComplete = false;
 
+    // Set the order in which the strings are typed
+    for (let i in self.strings) {
+      self.sequence[i] = i;
+    }
+
+    // If there is some text in the element
+    self.currentElContent = this.getCurrentElContent(self);
+
     self.autoInsertCss = self.options.autoInsertCss;
 
-    if (self.autoInsertCss) {
-      this.appendCursorAnimationCss(self);
-      this.appendFadeOutAnimationCss(self);
-    }
+    this.appendAnimationCss(self);
   }
 
   getCurrentElContent(self) {
@@ -160,21 +154,29 @@ export default class Initializer {
     return elContent;
   }
 
-  appendCursorAnimationCss(self) {
-    const cssDataName = 'data-typed-js-cursor-css';
-
-    if (!self.showCursor || document.querySelector(`[${cssDataName}]`)) {
+  appendAnimationCss(self) {
+    const cssDataName = 'data-typed-js-css';
+    if (!self.autoInsertCss) {
+      return;
+    }
+    if (!self.showCursor && !self.fadeOut && !self.glitch) {
+      return;
+    }
+    if (document.querySelector(`[${cssDataName}]`)) {
       return;
     }
 
     let css = document.createElement('style');
-    css.setAttribute(cssDataName, 'true');
+    css.type = 'text/css';
+    css.setAttribute(cssDataName, true);
 
-    css.innerHTML = `
-        .typed-cursor{
+    let innerCss = '';
+    if (self.showCursor) {
+      innerCss += `
+        .${self.cursorClass}{
           opacity: 1;
         }
-        .typed-cursor.typed-cursor--blink{
+        .${self.cursorClass}.${self.cursorBlinkClass}{
           animation: typedjsBlink 0.7s infinite;
           -webkit-animation: typedjsBlink 0.7s infinite;
                   animation: typedjsBlink 0.7s infinite;
@@ -188,31 +190,97 @@ export default class Initializer {
           100% { opacity: 1; }
         }
       `;
-
-    document.body.appendChild(css);
-  }
-
-  appendFadeOutAnimationCss(self) {
-    const cssDataName = 'data-typed-fadeout-js-css';
-
-    if (!self.fadeOut || document.querySelector(`[${cssDataName}]`)) {
-      return;
     }
-
-    let css = document.createElement('style');
-    css.setAttribute(cssDataName, 'true');
-
-    css.innerHTML = `
-        .typed-fade-out{
+    if (self.fadeOut) {
+      innerCss += `
+        .${self.fadeOutClass}{
           opacity: 0;
           transition: opacity .25s;
         }
-        .typed-cursor.typed-cursor--blink.typed-fade-out{
+        .${self.cursorClass}.${self.cursorBlinkClass}.${self.fadeOutClass}{
           -webkit-animation: 0;
           animation: 0;
         }
       `;
+    }
+    if (self.glitch) {
+      innerCss += `
+        .${self.glitchClass} {
+          position: relative;
+          animation: 1s linear infinite alternate-reverse glitch-skew;
+        }
 
+        .${self.glitchClass}::before,
+        .${self.glitchClass}::after {
+          content: attr(data-text);
+          position: absolute;
+          top: 0;
+          width: 100%;
+          height: 100%;
+        }
+
+        .${self.glitchClass}::before {
+          left: 2px;
+          text-shadow: -2px 0 #ff0015;
+          clip: rect(44px, 450px, 56px, 0);
+          animation: 5s linear infinite alternate-reverse glitch-anim;
+        }
+
+        .${self.glitchClass}::after {
+          left: -2px;
+          text-shadow: -2px 0 #00fff2, 2px 2px #ff0015;
+          animation: 1s linear infinite alternate-reverse glitch-anim2;
+        }
+
+        @keyframes glitch-anim {
+          0% { clip: rect(10px, 9999px, 30px, 0); transform: skew(0.5deg); }
+          5% { clip: rect(92px, 9999px, 93px, 0); transform: skew(0.8deg); }
+          10% { clip: rect(68px, 9999px, 34px, 0); transform: skew(0.1deg); }
+          15% { clip: rect(22px, 9999px, 10px, 0); transform: skew(0.6deg); }
+          20% { clip: rect(56px, 9999px, 98px, 0); transform: skew(0.4deg); }
+          25% { clip: rect(3px, 9999px, 23px, 0); transform: skew(0.7deg); }
+          30% { clip: rect(48px, 9999px, 23px, 0); transform: skew(0.2deg); }
+          35% { clip: rect(54px, 9999px, 86px, 0); transform: skew(0.9deg); }
+          40% { clip: rect(10px, 9999px, 12px, 0); transform: skew(0.3deg); }
+          45% { clip: rect(43px, 9999px, 59px, 0); transform: skew(0.5deg); }
+          50% { clip: rect(35px, 9999px, 58px, 0); transform: skew(0.7deg); }
+          55% { clip: rect(21px, 9999px, 73px, 0); transform: skew(0.1deg); }
+          60% { clip: rect(90px, 9999px, 76px, 0); transform: skew(0.6deg); }
+          65% { clip: rect(6px, 9999px, 53px, 0); transform: skew(0.4deg); }
+          70% { clip: rect(57px, 9999px, 95px, 0); transform: skew(0.8deg); }
+          75% { clip: rect(20px, 9999px, 78px, 0); transform: skew(0.2deg); }
+          80% { clip: rect(82px, 9999px, 24px, 0); transform: skew(0.9deg); }
+          85% { clip: rect(62px, 9999px, 53px, 0); transform: skew(0.3deg); }
+          90% { clip: rect(39px, 9999px, 63px, 0); transform: skew(0.5deg); }
+          95% { clip: rect(56px, 9999px, 17px, 0); transform: skew(0.7deg); }
+          100% { clip: rect(5px, 9999px, 53px, 0); transform: skew(0.1deg); }
+        }
+
+        @keyframes glitch-anim2 {
+          0% { clip: rect(65px, 9999px, 33px, 0); }
+          15% { clip: rect(87px, 9999px, 74px, 0); }
+          30% { clip: rect(18px, 9999px, 36px, 0); }
+          45% { clip: rect(25px, 9999px, 6px, 0); }
+          60% { clip: rect(73px, 9999px, 55px, 0); }
+          75% { clip: rect(56px, 9999px, 88px, 0); }
+          90% { clip: rect(43px, 9999px, 15px, 0); }
+          100% { clip: rect(78px, 9999px, 30px, 0); }
+        }
+
+        @keyframes glitch-skew {
+          0%, 40% { transform: skew(-2deg); }
+          10%, 50%, 100% { transform: skew(-1deg); }
+          20%, 90% { transform: skew(3deg); }
+          30%, 80% { transform: skew(1deg); }
+          60% { transform: skew(2deg); }
+          70% { transform: skew(-3deg); }
+        }
+      `;
+    }
+    if (innerCss.length === 0) {
+      return;
+    }
+    css.innerHTML = innerCss;
     document.body.appendChild(css);
   }
 }

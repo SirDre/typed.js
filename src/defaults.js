@@ -13,7 +13,7 @@ const defaults = {
     'These are the default values...',
     'You know what you should do?',
     'Use your own!',
-    'Have a great day!',
+    'Have a great day!'
   ],
   stringsElement: null,
 
@@ -48,18 +48,23 @@ const defaults = {
   backDelay: 700,
 
   /**
-   * @property {boolean} shouldBackspace Backspace or just keep typing the next string
-   */
-  shouldBackspace: true,
-
-  /**
    * @property {boolean} fadeOut Fade out instead of backspace
    * @property {string} fadeOutClass css class for fade animation
    * @property {boolean} fadeOutDelay Fade out delay in milliseconds
    */
   fadeOut: false,
-  fadeOutClass: 'typed-fade-out',
+  fadeOutClass: 'glitched-fade-out',
   fadeOutDelay: 500,
+
+  /**
+   * @property {boolean} glitch enable glitch effect while typing plain text
+   * @property {string} glitchClass css class for completed glitch animation
+   * @property {string} glitchRandomChars character set used for random glitch frames
+   */
+  glitch: true,
+  glitchClass: 'glitch',
+  glitchRandomChars:
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(){}[]<>.,;:',
 
   /**
    * @property {boolean} loop loop strings
@@ -75,6 +80,7 @@ const defaults = {
    */
   showCursor: true,
   cursorChar: '|',
+  cursorClass: 'glitched-cursor',
   autoInsertCss: true,
 
   /**
@@ -163,7 +169,7 @@ const defaults = {
    * After destroy
    * @param {Typed} self
    */
-  onDestroy: (self) => {},
+  onDestroy: (self) => {}
 };
 
 export default defaults;
