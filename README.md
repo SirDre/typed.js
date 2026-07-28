@@ -55,6 +55,7 @@ yarn add typed.js
 
 ```
 node scripts/install-src-demo.js
+node scripts/install-dist-lib.js
 node --check assets/demos.js
 ```
 
